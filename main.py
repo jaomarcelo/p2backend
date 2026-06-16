@@ -1,7 +1,8 @@
+```python
 import os
 
-from fastapi import FastAPI, Depends, HTTPException, status
-from pydantic import BaseModel, Field
+from fastapi import FastAPI, Depends, HTTPException, status, Response
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 
@@ -15,12 +16,16 @@ engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
+    expire_on_commit=False,
     bind=engine
 )
 
 Base = declarative_base()
 
-app = FastAPI()
+app = FastAPI(
+    title="API de Produtos",
+    version="1.0.0"
+)
 
 
 class Produto(Base):
@@ -33,14 +38,18 @@ class Produto(Base):
     ativo = Column(Boolean, default=True)
 
 
-Base.metadata.create_all(bind=engine)
-
-
 class ProdutoCreate(BaseModel):
     nome: str = Field(..., min_length=1)
     preco: float = Field(..., gt=0)
-    estoque: int = 0
+    estoque: int = Field(default=0, ge=0)
     ativo: bool = True
+
+    @field_validator("nome")
+    @classmethod
+    def validar_nome(cls, value):
+        if not value.strip():
+            raise ValueError("Nome não pode ser vazio")
+        return value
 
 
 class ProdutoResponse(ProdutoCreate):
@@ -58,7 +67,10 @@ def get_db():
         db.close()
 
 
-@app.get("/produtos", response_model=list[ProdutoResponse])
+@app.get(
+    "/produtos",
+    response_model=list[ProdutoResponse]
+)
 def listar_produtos(db: Session = Depends(get_db)):
     return db.query(Produto).all()
 
@@ -68,7 +80,10 @@ def listar_produtos(db: Session = Depends(get_db)):
     response_model=ProdutoResponse,
     status_code=status.HTTP_201_CREATED
 )
-def criar_produto(produto: ProdutoCreate, db: Session = Depends(get_db)):
+def criar_produto(
+    produto: ProdutoCreate,
+    db: Session = Depends(get_db)
+):
     novo = Produto(**produto.model_dump())
 
     db.add(novo)
@@ -78,11 +93,19 @@ def criar_produto(produto: ProdutoCreate, db: Session = Depends(get_db)):
     return novo
 
 
-@app.get("/produtos/{produto_id}", response_model=ProdutoResponse)
-def buscar_produto(produto_id: int, db: Session = Depends(get_db)):
-    produto = db.query(Produto).filter(
-        Produto.id == produto_id
-    ).first()
+@app.get(
+    "/produtos/{produto_id}",
+    response_model=ProdutoResponse
+)
+def buscar_produto(
+    produto_id: int,
+    db: Session = Depends(get_db)
+):
+    produto = (
+        db.query(Produto)
+        .filter(Produto.id == produto_id)
+        .first()
+    )
 
     if not produto:
         raise HTTPException(
@@ -97,10 +120,15 @@ def buscar_produto(produto_id: int, db: Session = Depends(get_db)):
     "/produtos/{produto_id}",
     status_code=status.HTTP_204_NO_CONTENT
 )
-def deletar_produto(produto_id: int, db: Session = Depends(get_db)):
-    produto = db.query(Produto).filter(
-        Produto.id == produto_id
-    ).first()
+def deletar_produto(
+    produto_id: int,
+    db: Session = Depends(get_db)
+):
+    produto = (
+        db.query(Produto)
+        .filter(Produto.id == produto_id)
+        .first()
+    )
 
     if not produto:
         raise HTTPException(
@@ -110,3 +138,6 @@ def deletar_produto(produto_id: int, db: Session = Depends(get_db)):
 
     db.delete(produto)
     db.commit()
+
+    return Response(status_code=204)
+```
