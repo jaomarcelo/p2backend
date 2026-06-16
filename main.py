@@ -1,4 +1,3 @@
-```python
 import os
 
 from fastapi import FastAPI, Depends, HTTPException, status, Response
@@ -140,4 +139,3 @@ def deletar_produto(
     db.commit()
 
     return Response(status_code=204)
-```
