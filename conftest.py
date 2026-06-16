@@ -20,6 +20,7 @@ engine = create_engine(TEST_DATABASE_URL)
 TestingSessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
+    expire_on_commit=False,
     bind=engine
 )
 
@@ -27,6 +28,7 @@ TestingSessionLocal = sessionmaker(
 @pytest.fixture()
 def client():
 
+    Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
 
     def override_get_db():
@@ -47,7 +49,6 @@ def client():
 
 @pytest.fixture()
 def produto_existente(client):
-
     response = client.post(
         "/produtos",
         json={
